@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Analyse locale de vos exports Kraken : portefeuille, coûts moyens, gains et récompenses.">
+  <title>Ledger Lens — Portefeuille Kraken</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="brand-icon">L</span> Ledger<span class="brand-light">Lens</span></a>
+    <span class="privacy"><span class="status-dot"></span> Vos données restent sur votre appareil</span>
+  </header>
+  <main>
+    <div class="heading"><div><p class="eyebrow">KRAKEN · SPOT &amp; EARN</p><h1>Votre portefeuille, en clair.</h1><p class="subtitle">Achats, ventes, frais et récompenses. Une vue d’ensemble, sans connecter votre compte.</p></div><span class="badge">100 % local</span></div>
+    <section id="import-panel" class="import-panel" aria-labelledby="import-title">
+      <div class="upload-icon" aria-hidden="true">↥</div>
+      <div class="import-text"><h2 id="import-title">Importez votre historique Kraken</h2><p>Glissez votre export <strong>Ledgers CSV avec valeurs USD</strong> ici, ou choisissez un fichier.</p><p class="small">Aucune clé API · Aucun compte · Aucun fichier envoyé</p></div>
+      <label class="button primary file-button" for="file-input">Choisir un fichier CSV</label>
+      <input id="file-input" type="file" accept=".csv,text/csv" class="visually-hidden">
+    </section>
+    <details class="panel api-panel">
+      <summary>Ou connecter Kraken avec une clé API en lecture seule</summary>
+      <p class="small">GitHub Pages ne peut pas appeler l’API privée Kraken directement. Lancez <code>npm run connect</code> sur votre ordinateur puis ouvrez son adresse locale, ou autorisez explicitement l’origine de votre site dans le connecteur. La mémorisation des clés est facultative et locale.</p>
+      <div class="notice">Créez une clé dédiée avec uniquement <strong>Data → Query ledger entries</strong> et <strong>Funds → Query funds</strong>. Ne cochez aucune autorisation de trading, dépôt, retrait, transfert ou Earn. Une clé API comporte une clé publique et un secret. Ne partagez jamais le secret et ne le placez pas dans le dépôt GitHub.</div>
+      <form id="api-form">
+        <div class="basis-grid">
+          <label class="basis-field">Adresse du connecteur local<input id="connector-url" type="url" value="http://127.0.0.1:4173" required autocomplete="off"></label>
+          <label class="basis-field">Clé API publique<input id="api-key" type="password" required autocomplete="off" spellcheck="false"></label>
+          <label class="basis-field">Secret API privé<input id="api-secret" type="password" required autocomplete="off" spellcheck="false"></label>
+          <label class="basis-field">Code 2FA API (si configuré)<input id="api-otp" type="password" inputmode="numeric" pattern="[0-9]{6,8}" autocomplete="off"></label>
+        </div>
+        <label class="checkbox"><input id="remember-key" type="checkbox"> Mémoriser la clé sur cet appareil</label>
+        <p class="small">Clé publique et secret stockés chiffrés dans ce profil navigateur. Jamais le code 2FA. Tout script de la même origine peut réutiliser la clé mémorisée : ne cochez cette option que sur votre appareil personnel et un site de confiance.</p>
+        <div class="actions"><button id="restore-key" class="button secondary" type="button" hidden>Réutiliser la clé mémorisée</button><button id="forget-key" class="button quiet" type="button">Oublier la clé mémorisée</button></div>
+        <p id="remember-status" class="small" role="status" aria-live="polite">Les identifiants ne sont pas mémorisés par défaut.</p>
+        <p class="small"><strong>Limite API :</strong> les valorisations historiques USD du CSV ne sont pas fournies par l’API. Les coûts des échanges simples avec USD sont reconstruits ; les autres coûts d’achat et produits de vente restent inconnus. Les distributions explicitement identifiées ont un coût économique nul, mais leur valeur à réception reste inconnue. Pour vos achats en EUR notamment, préférez le CSV avec valeurs USD. Les quantités sont rapprochées des soldes API. Actualisez ou saisissez les cours pour valoriser les actifs détenus.</p>
+        <div class="actions"><button id="api-check" class="button secondary" type="button">Vérifier le connecteur sans clé</button><button id="api-connect" class="button primary" type="submit">Importer depuis Kraken</button><button id="api-cancel" class="button secondary" type="button" hidden>Annuler</button></div>
+        <p id="api-status" class="small" role="status" aria-live="polite">La lecture intégrale peut prendre plusieurs minutes (pagination de 50 lignes, limite de 10 000 écritures). Seules les données complètes sont chargées.</p>
+      </form>
+    </details>
+    <div id="error" class="notice error" role="alert" hidden></div>
+    <div id="status" class="small" role="status" aria-live="polite"></div>
+    <section class="notice reward-controls" aria-label="Périmètre Hybrid Earn">
+      <label class="checkbox"><input id="include-hybrid" type="checkbox" checked> Inclure le capital Hybrid Earn / DeFi reconstitué à partir des transferts</label>
+      <p class="small">Une sortie « hybridearnwithdrawal » du portefeuille Spot n’est pas forcément une vente ou une sortie de votre patrimoine. Le site conserve le capital transféré et son coût, puis déduit les retours « hybridearndeposit ». Cette position est une reconstitution, pas un solde actuel confirmé : rendements, pertes et opérations hors ledger ne sont pas connus. Vérifiez le solde de votre coffre. Décochez si vous ne détenez plus ces fonds ou si votre solde API inclut déjà ce produit, pour éviter un double comptage.</p>
+    </section>
+    <section class="notice currency-controls" aria-label="Devise d’affichage">
+      <div class="actions"><label>Devise d’affichage <select id="display-currency"><option value="USD">Dollar américain · USD</option><option value="EUR">Euro · EUR</option></select></label><button id="refresh-fx" type="button" class="button secondary">Actualiser le taux EUR/USD</button></div>
+      <p id="fx-status" class="small" role="status" aria-live="polite">Affichage USD, devise de calcul du ledger. Choisir EUR charge uniquement le taux public Kraken EUR/USD.</p>
+      <p class="small">Les montants, gains, prix, frais et graphiques sont convertis au même taux indiqué. Les saisies en EUR sont reconverties en USD à ce taux ; les historiques et coûts USD ne sont pas réécrits. Ce n’est pas un calcul fiscal avec les taux de change à chaque date.</p>
+    </section>
+    <section id="empty-state" class="empty-state">
+      <div><span class="step">01</span><h3>Exportez depuis Kraken</h3><p>Historique → Exporter → Ledgers. Incluez tout votre historique et les valeurs en USD.</p></div>
+      <div><span class="step">02</span><h3>Retrouvez le vrai coût</h3><p>Les frais sont intégrés, les ventes réduisent le stock et les transferts Earn ne sont pas des achats.</p></div>
+      <div><span class="step">03</span><h3>Comparez aux prix du marché</h3><p>Utilisez les derniers prix de l’export, saisissez vos prix ou actualisez via l’API publique Kraken.</p></div>
+      <button id="demo" class="button secondary">Explorer un exemple fictif</button>
+    </section>
+    <div id="dashboard" hidden>
+      <div class="toolbar"><div><h2>Vue d’ensemble</h2><p id="file-meta" class="small"></p></div><div class="actions"><label class="basis-field">Source des prix<select id="price-provider"><option value="kraken">Kraken</option><option value="coingecko">CoinGecko</option></select></label><button id="refresh" class="button secondary">↻ Actualiser les cours</button><button id="export" class="button secondary">Exporter les statistiques</button><button id="reset" class="button quiet">Effacer</button></div></div>
+      <details id="price-gecko-settings" class="panel" hidden><summary>Identifiants CoinGecko pour la valorisation</summary><p class="small">Vérifiez la crypto exacte sur CoinGecko. Les identifiants sont partagés avec le graphique et restent dans cette page. Les symboles seuls peuvent être ambigus : aucun actif n’est choisi arbitrairement. Un identifiant absent ou un cours indisponible conserve le prix précédent avec un avertissement.</p><div id="price-gecko-ids" class="basis-grid"></div></details>
+      <p class="small">La source choisie est utilisée au clic sur « Actualiser les cours », indépendamment du graphique. CoinGecko fournit des prix agrégés USD avec leur date de mise à jour ; l’affichage EUR utilise le taux indiqué. Données : <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer">CoinGecko</a> ou Kraken. Aucun historique, quantité ou identifiant privé n’est transmis.</p>
+      <div id="price-note" class="notice"></div>
+      <section class="notice reward-controls" aria-label="Traitement des récompenses">
+        <label class="checkbox"><input id="include-rewards" type="checkbox" checked> Inclure les récompenses, bonus et airdrops dans les gains (coût d’acquisition nul)</label>
+        <p class="small">Par défaut, les unités offertes encore détenues contribuent au gain non réalisé à leur valeur actuelle ; celles vendues contribuent au gain réalisé à leur produit net. Décochez pour mesurer seulement la variation depuis leur valeur à réception. Les dépôts externes et soldes initiaux inconnus ne deviennent jamais gratuits.</p>
+        <p class="small">Unités gratuites encore détenues : <strong id="gifts-held">—</strong> · Produit des ventes attribué aux unités gratuites : <strong id="gifts-sold">—</strong>. Ventilation proportionnelle au coût moyen, pas suivi fiscal de lots. Ces montants sont déjà inclus dans les gains du mode économique : ne les ajoutez pas une seconde fois.</p>
+      </section>
+      <div class="metrics">
+        <article class="metric"><p>Valeur des cryptos</p><h2 id="total-value">—</h2><span id="cash" class="small"></span></article>
+        <article class="metric accent"><p>Gain non réalisé <span class="help" title="Valeur de la part au coût connu moins son coût restant.">ⓘ</span></p><h2 id="total-unrealized">—</h2><span id="unrealized-note" class="small"></span></article>
+        <article class="metric"><p>Gain réalisé · ventes</p><h2 id="total-realized">—</h2><span id="realized-note" class="small"></span></article>
+        <article class="metric"><p>Récompenses · valeur à réception</p><h2 id="total-rewards">—</h2><span class="small">Information historique, pas un gain à ajouter aux totaux</span></article>
+      </div>
+      <div class="insights">
+        <section class="panel allocation"><div class="section-heading"><h2>Répartition du portefeuille</h2><span class="small">Hors monnaies fiat</span></div><div class="allocation-content"><div id="donut" class="donut"><div><strong id="asset-count">0</strong><span>actifs détenus</span></div></div><div id="allocation-legend" class="legend"></div></div></section>
+        <section class="panel"><div class="section-heading"><h2>La qualité de vos données</h2><span id="quality-badge" class="badge"></span></div><p class="small">Part de la valeur du portefeuille dont le coût est connu</p><div class="coverage"><span id="coverage-bar"></span></div><strong id="coverage-label"></strong><div class="mini-stats"><div><span>Coût restant connu</span><strong id="remaining-cost"></strong></div><div><span>Frais de l’historique</span><strong id="fees"></strong></div><div><span>Achats / entrées par échange</span><strong id="bought"></strong></div><div><span>Ventes / sorties par échange</span><strong id="sold"></strong></div></div></section>
+      </div>
+      <section class="panel chart-panel" aria-labelledby="chart-title">
+        <div class="section-heading">
+          <div><p id="chart-source" class="eyebrow">OBSERVATIONS DU FICHIER · USD</p><h2 id="chart-title">Cours &amp; vos transactions</h2><p id="chart-summary" class="chart-price">—</p></div>
+          <div class="chart-selectors">
+            <label>Crypto<select id="chart-asset" aria-label="Crypto du graphique"></select></label>
+            <label>Source<select id="chart-provider"><option value="kraken">Kraken · bougies</option><option value="coingecko">CoinGecko · courbe</option></select></label>
+            <label id="gecko-field" hidden>Identifiant CoinGecko<input id="gecko-id" type="text" placeholder="bitcoin" autocomplete="off" spellcheck="false"><span class="small">Vérifiez la crypto exacte sur CoinGecko.</span></label>
+            <label>Fin de période<select id="chart-anchor"><option value="history">Fin de l’historique importé</option><option value="today">Aujourd’hui</option></select></label>
+          </div>
+        </div>
+        <div class="chart-toolbar"><div id="chart-periods" class="periods" role="group" aria-label="Période du graphique"></div><div class="actions"><button id="chart-load" class="button secondary" type="button">Charger les bougies Kraken</button><button id="chart-offline" class="button quiet" type="button">Observations du fichier</button></div></div>
+        <div class="chart-legend"><span><i class="swatch chart-up"></i><span id="chart-legend-up">Achat ▲</span></span><span><i class="swatch chart-down"></i><span id="chart-legend-down">Vente ▼</span></span><span class="small">Survolez, touchez ou utilisez ← → sur le graphique · UTC</span></div>
+        <p id="chart-status" class="small" role="status" aria-live="polite"></p>
+        <div id="chart-error" class="notice error" role="alert" hidden></div>
+        <div id="chart-canvas" class="chart-canvas"><svg id="price-chart" role="img" tabindex="0" aria-label="Graphique des cours et transactions"></svg><p id="chart-tooltip" class="chart-tooltip" hidden></p></div>
+        <p id="chart-chart-note" class="small"></p><p id="chart-coverage" class="small"></p>
+        <p id="gecko-credit" class="small" hidden>Données de marché : <a href="https://www.coingecko.com/" target="_blank" rel="noopener noreferrer">CoinGecko</a>. Les repères et transactions sont ajoutés localement, sans envoi de votre historique.</p>
+        <details><summary>Achats et ventes de la période</summary><p class="small">Quantités et frais dans la crypto sélectionnée. Le prix implicite USD du ledger, converti dans la devise d’affichage, n’est pas forcément votre prix d’exécution réel ni votre coût moyen (qui inclut les frais). Les conversions crypto et poussières sont incluses ; les opérations non appariées sont signalées.</p><div class="table-scroll"><table><thead><tr><th>Date UTC</th><th>Opération</th><th>Quantité brute</th><th>Frais crypto</th><th data-currency-label="Prix implicite">Prix implicite / USD</th><th>Référence</th><th>Repère</th></tr></thead><tbody id="chart-trades-body"></tbody></table></div></details>
+      </section>
+      <section class="panel" aria-labelledby="pnl-title"><h2 id="pnl-title">Décomposition du PnL</h2><div id="pnl-detail"></div></section>
+      <section class="panel holdings">
+        <div class="section-heading"><div><h2>Vos actifs</h2><p id="asset-scope" class="small">USD · Coût moyen pondéré · Spot + Earn · Hors positions Futures</p></div><div class="filters"><label class="visually-hidden" for="search">Rechercher un actif</label><input id="search" type="search" placeholder="Rechercher un actif…"><label class="checkbox"><input id="show-closed" type="checkbox" checked> Inclure les soldes nuls</label></div></div>
+        <div class="table-scroll"><table><thead><tr><th>Actif</th><th>Quantité</th><th data-currency-label="Prix">Prix / USD</th><th>Valeur</th><th>Coût restant</th><th>Non réalisé</th><th>Réalisé</th><th>Coût inconnu</th></tr></thead><tbody id="holdings-body"></tbody></table></div>
+        <p class="small table-footnote">Tous les actifs de l’historique sont inclus par défaut, même à solde nul : leur gain réalisé et leurs transactions restent consultables. Cliquez sur le nom d’une crypto pour ouvrir son graphique. Les gains « partiels » excluent les unités au coût inconnu. Un prix vide indique une valorisation indisponible.</p>
+      </section>
+      <details class="panel">
+        <summary>Statistiques détaillées par actif</summary>
+        <p class="small">Même sélection et même convention de gains que le tableau des actifs. Le coût moyen porte uniquement sur les unités au coût connu. « Offert » regroupe Earn, bonus et airdrops explicitement identifiés ; les ventes comprennent les conversions et la ventilation est proportionnelle. La valeur à réception et les ventilations gratuites sont informatives, pas des montants à ajouter aux gains. Les frais sont déjà intégrés.</p>
+        <div class="table-scroll"><table><thead><tr><th>Actif</th><th data-currency-label="Coût moyen">Coût moyen / USD</th><th data-currency-label="Achats">Achats / USD</th><th data-currency-label="Ventes">Ventes / USD</th><th data-currency-label="Réception">Réception / USD</th><th data-currency-label="Frais">Frais / USD</th><th>Offert reçu / unités</th><th>Offert restant / unités</th><th data-currency-label="Offert détenu">Offert détenu / USD</th><th data-currency-label="Ventes offert">Ventes offert / USD</th><th>Qualité historique</th></tr></thead><tbody id="statistics-body"></tbody></table></div>
+      </details>
+      <section class="panel assumptions"><div class="section-heading"><div><h2>Compléter les coûts manquants</h2><p class="small">Facultatif : coût unitaire estimé des soldes initiaux et apports inconnus d’un actif, dans la devise d’affichage (conversion en USD au taux indiqué). Dans le mode de référence, cela complète aussi les distributions sans valeur à réception. Ce n’est pas le coût des achats du CSV.</p></div></div><div id="basis-inputs" class="basis-grid"></div><p class="small">Ces hypothèses sont appliquées au fil de l’historique, y compris aux unités déjà vendues. Les distributions explicitement gratuites gardent toujours un coût économique nul. Les autres coûts renseignés restent des estimations. Effacez une valeur pour revenir au coût inconnu.</p></section>
+      <details class="panel" id="warnings-panel"><summary id="warnings-title">Points à vérifier</summary><ul id="warnings-list"></ul></details>
+      <details class="panel"><summary>Historique des opérations</summary><p class="small">500 dernières lignes maximum · Heures UTC · Valeurs historiques USD de l’export, converties dans la devise sélectionnée au taux d’affichage indiqué, pas au taux de change de chaque opération.</p><div class="table-scroll"><table><thead><tr><th>Date UTC</th><th>Type</th><th>Actif</th><th>Portefeuille</th><th>Montant</th><th>Frais</th><th data-currency-label="Valeur">Valeur / USD</th></tr></thead><tbody id="history-body"></tbody></table></div></details>
+    </div>
+    <details class="method panel"><summary>Comprendre les calculs et leurs limites</summary><div class="method-content">
+      <p><strong>Devise : USD.</strong> Les valeurs historiques viennent de <code>amountusd</code>, <code>feeusd</code> et <code>balanceusd</code>. Les monnaies fiat sont exclues des gains crypto. Les stablecoins sont inclus.</p>
+      <p><strong>Achats et ventes :</strong> les lignes sont regroupées par <code>refid</code>. Le coût d’achat inclut les frais payés en fiat sur la sortie ; les frais prélevés sur l’actif reçu réduisent sa quantité. Une vente retire une part proportionnelle du coût moyen. Une conversion crypto → crypto est une cession puis une acquisition : les frais en crypto sortants retirent du coût dans le gain réalisé et ne sont pas ajoutés au coût du nouvel actif ; les frais en crypto reçue réduisent sa quantité sans être aussi soustraits du produit de cession. Chaque frais est ainsi pris en compte une seule fois. Les conversions de poussières répartissent le produit selon les valeurs USD des actifs cédés.</p>
+      <p><strong>Earn, bonus et airdrops :</strong> deux conventions sont disponibles. Le mode économique, activé par défaut, attribue un coût d’acquisition nul aux distributions explicitement identifiées : toute leur valeur encore détenue contribue au non réalisé, et leur produit net de vente au réalisé, même après une baisse du cours. Le mode de référence les capitalise à leur valeur nette à réception et mesure la variation ultérieure. Une valeur USD à réception manquante ne rend pas leur coût économique inconnu, mais leur revenu historique et leur gain de référence restent partiels. La valeur à réception affichée séparément ne doit jamais être ajoutée une seconde fois aux gains économiques.</p>
+      <p><strong>Mouvements :</strong> les transferts appariés d’un même actif sont neutres. Les quantités et coûts payés/gratuits/inconnus sont retirés proportionnellement à chaque sortie. Une conversion réalise le gain de l’actif offert cédé ; l’actif acquis reçoit le coût de l’échange, évitant de compter de nouveau le même bonus. Un retrait externe retire quantité et coût, sans créer une vente. Les avoirs hors Kraken et les positions Futures ne sont pas suivis.</p>
+      <p><strong>Historique incomplet :</strong> les soldes précédant la première ligne de chaque portefeuille sont reconstitués à partir du solde, du montant et des frais. Leur coût, et celui des dépôts externes, reste inconnu. Les sorties retirent proportionnellement des unités connues et inconnues. Le gain global est partiel tant qu’il manque des coûts ou des prix. Le coût estimé facultatif concerne tous les apports inconnus d’un actif.</p>
+      <p><strong>Prix :</strong> par défaut, dernier prix implicite disponible pour chaque actif dans le CSV, à une date potentiellement différente. Ce n’est pas un instantané actuel du portefeuille. L’actualisation facultative utilise le dernier échange des paires USD de l’API publique Kraken ; les actifs sans paire conservent leur ancien prix. Les prix manuels permettent de valoriser les autres actifs.</p>
+      <p><strong>Confidentialité :</strong> aucune sauvegarde automatique des opérations, aucun cookie et aucune télémétrie. Recharger la page efface les données de portefeuille. L’actualisation des cours contacte l’API publique Kraken avec les symboles demandés, jamais les transactions ni les soldes. En mode clé API, votre connecteur local contacte les endpoints privés de lecture Kraken ; le secret sert uniquement à signer les requêtes. La case facultative « Mémoriser » conserve la clé et le secret chiffrés dans ce navigateur, jamais le code 2FA. Le bouton « Oublier » supprime cette copie locale ; pour révoquer la clé, utilisez Kraken. Aucun identifiant n’est envoyé au serveur GitHub Pages.</p>
+      <p>Outil indicatif, pas un calcul fiscal ni un conseil financier. Calculs en nombres JavaScript : de petits écarts d’arrondi sont possibles.</p>
+    </div></details>
+    <footer><span>LedgerLens · Un regard clair sur votre historique.</span><span>Sans compte. Sans suivi. Sans compromis.</span></footer>
+  </main>
+</body>
+</html>

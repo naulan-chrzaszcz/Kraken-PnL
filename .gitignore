@@ -1,0 +1,4 @@
+*.csv
+!tests/fixtures/*.csv
+node_modules/
+.DS_Store

@@ -1,0 +1,69 @@
+name: Deploy static site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm test
+      - name: Stage public files only
+        run: |
+          mkdir _site
+          cp index.html styles.css app.js ledger.js prices.js vault.js market.js chart.js currency.js coingecko.js _site/
+      - uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        id: upload
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: github-pages
+          path: _site
+      - name: Wait for uploaded artifact metadata
+        uses: actions/github-script@v8
+        env:
+          EXPECTED_ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+        with:
+          script: |
+            const expectedId = Number(process.env.EXPECTED_ARTIFACT_ID);
+            if (!Number.isSafeInteger(expectedId) || expectedId <= 0) {
+              throw new Error('Upload did not return an artifact ID.');
+            }
+            for (let attempt = 0; attempt < 12; attempt++) {
+              const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId,
+                per_page: 100
+              });
+              const artifact = artifacts.find(item =>
+                item.id === expectedId && item.name === 'github-pages' && !item.expired
+              );
+              if (artifact) {
+                core.info(`Pages artifact ${artifact.id} is visible.`);
+                return;
+              }
+              core.info(`Waiting for artifact metadata (${attempt + 1}/12).`);
+              if (attempt < 11) await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+            throw new Error('Uploaded Pages artifact is not visible after retries. Re-run all jobs.');
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages
